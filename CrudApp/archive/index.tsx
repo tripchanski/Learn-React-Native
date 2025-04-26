@@ -7,81 +7,70 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useContext, useEffect } from "react";
+import { useContext, useState } from "react";
 import { ThemeContext } from "@/context/ThemeContext";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Inter_500Medium, useFonts } from "@expo-google-fonts/inter";
 import { Octicons } from "@expo/vector-icons";
 import { Todo } from "@/types";
 import { mainStyles } from "@/styles/main";
-import { useTodos } from "@/hooks/useTodos";
-import { data } from "@/data/todos";
 import Animated, { LinearTransition } from "react-native-reanimated";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
 
 export default function Index() {
   // States
-  const { todos, text, setText, addTodo, toggleTodo, deleteTodo, setTodos } =
-    useTodos();
+  const [todos, setTodos] = useState<Todo[]>(data.sort((a, b) => b.id - a.id));
+
+  // Стейт для текста из TextInput
+  const [text, setText] = useState<string>("");
+
   const { colorScheme, setColorScheme, theme } = useContext(ThemeContext);
-  const isDark = colorScheme === "dark";
-  const router = useRouter();
-  // styles
-  const styles = mainStyles(theme, colorScheme);
 
-  // fonts
-  const [loaded, error] = useFonts({ Inter_500Medium });
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const jsonValue = await AsyncStorage.getItem("TodoApp");
-        const storageTodos = jsonValue != null ? JSON.parse(jsonValue) : null;
-        if (storageTodos && storageTodos.length) {
-          setTodos(storageTodos.sort((a: Todo, b: Todo) => b.id - a.id));
-        } else {
-          setTodos(data.sort((a: Todo, b: Todo) => b.id - a.id));
-        }
-      } catch (error) {
-        console.error("Error loading todos:", error);
-      }
-    };
-    fetchData();
-  }, [data]);
-
-  useEffect(() => {
-    const storeData = async () => {
-      try {
-        const jsonValue = JSON.stringify(todos);
-        await AsyncStorage.setItem("TodoApp", jsonValue);
-      } catch (error) {
-        console.error("Error saving todos:", error);
-      }
-    };
-    storeData();
-  }, [todos]);
+  const [loaded, error] = useFonts({
+    Inter_500Medium,
+  });
 
   if (!loaded && !error) {
     return null;
   }
 
-  const handlePress = (id: number) => {
-    router.push(`/todos/${id}`);
+  // Добавление новой задачи
+  const addTodo = () => {
+    if (text.trim()) {
+      // если текст не пустой
+      const newId = todos.length > 0 ? todos[0].id + 1 : 1; // новый ID — на 1 больше, чем у самой первой задачи
+      const newTodo: Todo = { id: newId, title: text, completed: false }; // создаём объект задачи
+      setTodos([newTodo, ...todos]); // добавляем задачу в начало массива
+      setText(""); // очищаем поле ввода
+    }
   };
 
-  const renderTodo: ListRenderItem<Todo> = ({ item }) => (
+  // Переключение состояния задачи (выполнена / не выполнена)
+  const toggleTodo = (id: number) => {
+    setTodos(
+      todos.map(
+        (todo) =>
+          todo.id === id
+            ? { ...todo, completed: !todo.completed } // если совпадает ID — инвертируем completed
+            : todo, // иначе оставляем как есть
+      ),
+    );
+  };
+
+  // Удаление задачи по ID
+  const removeTodo = (id: number) => {
+    setTodos(todos.filter((todo) => todo.id !== id)); // фильтруем все задачи, кроме той, которую удаляем
+  };
+
+  // Компонент для отрисовки одной задачи (используется в FlatList)
+  const renderItem: ListRenderItem<Todo> = ({ item }) => (
     <View style={styles.todoItem}>
-      <Pressable
-        onPress={() => handlePress(item.id)}
-        onLongPress={() => toggleTodo(item.id)}
+      <Text
+        style={[styles.todoText, item.completed && styles.completedText]} // зачёркнутый стиль, если выполнено
+        onPress={() => toggleTodo(item.id)} // по нажатию переключаем completed
       >
-        <Text style={[styles.todoText, item.completed && styles.completedText]}>
-          {item.title}
-        </Text>
-      </Pressable>
-      <Pressable onPress={() => deleteTodo(item.id)}>
+        {item.title}
+      </Text>
+      <Pressable onPress={() => removeTodo(item.id)}>
         <MaterialCommunityIcons name="delete-circle" size={36} color="red" />
       </Pressable>
     </View>
@@ -92,7 +81,6 @@ export default function Index() {
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
-          maxLength={30}
           placeholder="Add a new todo"
           placeholderTextColor="gray"
           value={text}
@@ -134,7 +122,6 @@ export default function Index() {
         itemLayoutAnimation={LinearTransition}
         keyboardDismissMode="on-drag"
       />
-      <StatusBar style={isDark ? "light" : "dark"} />
     </SafeAreaView>
   );
 }
