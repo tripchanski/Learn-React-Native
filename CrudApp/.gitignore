@@ -26,6 +26,8 @@ yarn-debug.*
 yarn-error.*
 
 # macOS
+/ios
+/android
 .DS_Store
 *.pem
 
